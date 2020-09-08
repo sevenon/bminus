@@ -1,0 +1,538 @@
+<script src="https://google-code-prettify.googlecode.com/svn/loader/run_prettify.js"></script>
+<pre class="prettyprint"><code class="language-c">
+#ifndef _MSC_VER
+#line 2 &quot;target_linuxassemblerx86.h&quot;
+#endif
+
+
+// ---------------------------------------------------------------------------
+// addressing modes
+enum {
+    Target_t_ix,
+    Target_t_local,
+    Target_t_local_ix,
+    Target_t_global,
+    Target_t_global_ix,
+    Target_t_indirect
+};
+
+// ---------------------------------------------------------------------------
+enum {
+    Target_string_table_size = 1048576        // 1 * 1024 * 1024
+};
+
+int target_string_table_length;
+char target_string_table[Target_string_table_size];
+
+// ---------------------------------------------------------------------------
+char target_current_label[Str_size];
+
+int target_label_sequence_no;
+
+// ---------------------------------------------------------------------------
+target_init() {
+
+    target_string_table_length = 0;
+    copy(target_current_label, &quot;&quot;);
+    target_label_sequence_no = 0;
+}
+
+
+// ---------------------------------------------------------------------------
+target_comment_print(char comment_block[]) {
+    int i;
+    char line[Str_size];
+
+    i = 0;
+    copy(line, &quot;&quot;);
+
+    while (comment_block[i] != 0) {
+
+        if (str_equals(line, &quot;&quot;)) {
+            fill_until_col(line, 60);
+            append(line, &quot;# &quot;);
+        }
+
+        if (comment_block[i] != &#39;\n&#39;) {
+            append_char(line, comment_block[i]);
+        }
+
+        if (comment_block[i] == &#39;\n&#39; || comment_block[i + 1] == 0) {
+            writeln(line);
+            copy(line, &quot;&quot;);
+        }
+
+        i = i + 1;
+    }
+}
+
+// ---------------------------------------------------------------------------
+target_instruction_print(char opcode[], char operand1[], char operand2[]) {
+    char line[Str_size];
+
+    copy(line, &quot;&quot;);
+
+    if (! str_equals(target_current_label, &quot;&quot;)) {
+        copy(line, target_current_label);
+        append(line, &quot;:&quot;);
+
+        copy(target_current_label, &quot;&quot;);
+    }
+
+    append(line, &quot; &quot;);
+    fill_until_col(line, 24);
+
+    append(line, opcode);
+
+    if (str_equals(operand1, &quot;&quot;)) {
+        writeln(line);
+        return;
+    }
+
+    append(line, &quot; &quot;);
+    fill_until_col(line, 42);
+    append(line, operand1);
+
+    if (str_equals(operand2, &quot;&quot;)) {
+        writeln(line);
+        return;
+    }
+
+    append(line, &quot;, &quot;);
+    append(line, operand2);
+    writeln(line);
+}
+// ---------------------------------------------------------------------------
+target_instruction_no_operand(char opcode[]) {
+    
+    target_instruction_print(opcode, &quot;&quot;, &quot;&quot;);
+}
+
+target_instruction_one_operand(char opcode[], char operand1[]) {
+
+    target_instruction_print(opcode, operand1, &quot;&quot;);
+}
+
+target_instruction_two_operands(char opcode[], char operand1[], char operand2[]) {
+
+    target_instruction_print(opcode, operand1, operand2);
+}
+
+target_instruction_branch(char opcode[], char label[], char label_postfix[]) {
+    char location_field[Str_size];
+
+    copy(location_field, label);
+    append(location_field, label_postfix);
+
+    target_instruction_one_operand(opcode, location_field);
+}
+
+// ---------------------------------------------------------------------------
+generate_address(char address_out[], int address, int address_mode) {
+
+    if (address_mode == Target_t_global || address_mode == Target_t_global_ix) {
+        if (address &lt;= 0) {
+            int_to_str(-address, address_out);
+            append(address_out, &quot;+global&quot;);
+        } else {
+            int_to_str(address, address_out);
+            append(address_out, &quot;+string&quot;);
+        }
+
+        if (address_mode == Target_t_global_ix) {
+            append(address_out, &quot;(,%ebx,4)&quot;);
+        }
+
+    } else if (address_mode == Target_t_local) {
+        int_to_str(address, address_out);
+        append(address_out, &quot;(%ebp)&quot;);
+
+    } else if (address_mode == Target_t_local_ix) {
+        int_to_str(address, address_out);
+        append(address_out, &quot;(%ebp,%ebx,4)&quot;);
+
+    } else if (address_mode == Target_t_ix) {
+        copy(address_out, &quot;(,%ebx,4)&quot;);
+
+    } else if (address_mode == Target_t_indirect) {
+        copy(address_out, &quot;(%ebx)&quot;);
+
+    } else {
+        error_internal();
+    }
+}
+
+// ---------------------------------------------------------------------------
+target_op_branch(char label[], char postfix[]) {
+    target_instruction_branch(&quot;jmp&quot;, label, postfix);
+}
+
+target_op_branch_back(char label[], char postfix[]) {
+    target_instruction_branch(&quot;jmp&quot;, label, postfix);
+}
+
+target_op_branch_if_less(char label[], char postfix[]) {
+    target_instruction_branch(&quot;jg&quot;, label, postfix);
+}
+
+target_op_branch_if_greater(char label[], char postfix[]) {
+    target_instruction_branch(&quot;jl&quot;, label, postfix);
+}
+
+target_op_branch_if_equals(char label[], char postfix[]) {
+    target_instruction_branch(&quot;je&quot;, label, postfix);
+}
+
+target_op_branch_if_not_equals(char label[], char postfix[]) {
+    target_instruction_branch(&quot;jne&quot;, label, postfix);
+}
+
+target_op_branch_if_true(char label[], char postfix[]) {
+    target_instruction_branch(&quot;jnz&quot;, label, postfix);
+}
+
+target_op_branch_if_false(char label[], char postfix[]) {
+    target_instruction_branch(&quot;jz&quot;, label, postfix);
+
+}
+
+// ---------------------------------------------------------------------------
+target_op_loadx() {
+    target_instruction_two_operands(&quot;movl&quot;, &quot;%eax&quot;, &quot;%ebx&quot;);
+}
+
+target_op_load_constant(int constant) {
+    char constant_str[Str_size];
+    char constant_field[Str_size];
+
+    int_to_str(constant, constant_str);
+    copy(constant_field, &quot;$&quot;);
+    append(constant_field, constant_str);
+
+    target_instruction_two_operands(&quot;movl&quot;, constant_field, &quot;%eax&quot;);
+}
+
+target_op_load_address(int address, int address_mode_type) {
+    char address_str[Str_size];
+
+    generate_address(address_str, address, address_mode_type);
+    target_instruction_two_operands(&quot;lea&quot;, address_str, &quot;%eax&quot;);
+}
+
+target_op_load(int address, int address_mode_type) {
+    char address_str[Str_size];
+
+    generate_address(address_str, address, address_mode_type);
+    target_instruction_two_operands(&quot;movl&quot;, address_str, &quot;%eax&quot;);
+}
+
+target_op_store(int address, int address_mode_type) {
+    char address_str[Str_size];
+
+    generate_address(address_str, address, address_mode_type);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;%eax&quot;, address_str);
+}
+
+target_op_add(int address, int address_mode_type) {
+    char address_str[Str_size];
+
+    generate_address(address_str, address, address_mode_type);
+    target_instruction_two_operands(&quot;addl&quot;, address_str, &quot;%eax&quot;);
+}
+
+target_op_subtract(int address, int address_mode_type) {
+    char address_str[Str_size];
+
+    generate_address(address_str, address, address_mode_type);
+    target_instruction_two_operands(&quot;subl&quot;, address_str, &quot;%eax&quot;);
+}
+
+target_op_multiply (int address, int address_mode_type) {
+    char address_str[Str_size];
+
+    generate_address(address_str, address, address_mode_type);
+    target_instruction_one_operand(&quot;imull&quot;, address_str);
+}
+
+target_op_divide(int address, int address_mode_type) {
+    char address_str[Str_size];
+
+    generate_address(address_str, address, address_mode_type);
+    target_instruction_no_operand(&quot;cdq&quot;);
+    target_instruction_one_operand(&quot;idivl&quot;, address_str);
+}
+
+target_op_test() {
+    target_instruction_two_operands(&quot;cmpl&quot;, &quot;$0&quot;, &quot;%eax&quot;);
+}
+
+// ---------------------------------------------------------------------------
+target_op_subroutine_begin(char function_name[], int argument_count, int local_frame_size) {
+    char local_frame_size_str[Str_size];
+    char local_frame_size_field[Str_size];
+
+    target_emit_label(function_name, &quot;&quot;);
+
+    int_to_str(local_frame_size * 4, local_frame_size_str);
+    copy(local_frame_size_field, &quot;$&quot;);
+    append(local_frame_size_field, local_frame_size_str);
+    target_instruction_two_operands(&quot;enter&quot;, local_frame_size_field, &quot;$0&quot;);
+}
+
+target_op_subroutine_end(char function_name[], int argument_count, int local_frame_size) {
+
+    target_emit_label(&quot;&quot;, &quot;&quot;);
+    target_instruction_no_operand(&quot;leave&quot;);
+    target_instruction_no_operand(&quot;ret&quot;);
+}
+
+target_op_call_subroutine(char function_name[], int argument_count, int local_frame_size) {
+    char argument_size_str[Str_size];
+    char argument_size_field[Str_size];
+
+    target_instruction_one_operand(&quot;call&quot;, function_name);
+
+    if (argument_count &lt; 1) {
+        return;
+    }
+
+    int_to_str(argument_count * 4, argument_size_str);
+    copy(argument_size_field, &quot;$&quot;);
+    append(argument_size_field, argument_size_str);
+
+    target_instruction_two_operands(&quot;addl&quot;, argument_size_field, &quot;%esp&quot;);
+}
+
+target_op_pass_argument(int argument_no, int argument_count, int local_frame_size) {
+
+    target_instruction_one_operand(&quot;pushl&quot;, &quot;%eax&quot;);
+}
+
+// ---------------------------------------------------------------------------
+target_emit_label(char label[], char label_postfix[]) {
+
+    if (! str_equals(target_current_label, &quot;&quot;)) {
+        write(target_current_label);
+        writeln(&quot;:&quot;);
+    }
+
+    copy(target_current_label, label);
+    append(target_current_label, label_postfix);
+}
+
+// ---------------------------------------------------------------------------
+target_begin_branch_block(char label[], char label_postfix[]) {
+}
+
+// ---------------------------------------------------------------------------
+target_end_branch_block(char label[], char label_postfix[]) {
+    target_emit_label(label, label_postfix);
+}
+
+// ---------------------------------------------------------------------------
+target_begin_back_branch_block(char label[], char label_postfix[]) {
+    target_emit_label(label, label_postfix);
+}
+
+// ---------------------------------------------------------------------------
+target_end_back_branch_block(char label[], char label_postfix[]) {
+}
+
+// ---------------------------------------------------------------------------
+target_built_in_function_debug() {
+    char label[Str_size];
+
+    target_instruction_two_operands(&quot;movl&quot;, &quot;%eax&quot;, &quot;%ecx&quot;);
+
+    target_get_label(&quot;debug_neg_if&quot;, label);
+    target_instruction_two_operands(&quot;cmpl&quot;, &quot;$0&quot;, &quot;%eax&quot;);
+    target_instruction_branch(&quot;jge&quot;, label, &quot;_end&quot;);
+    target_instruction_one_operand(&quot;neg&quot;, &quot;%eax&quot;);
+    target_emit_label(label, &quot;_end&quot;);
+
+    target_instruction_one_operand(&quot;pushl&quot;, &quot;$&#39;\\n&quot;);
+
+    target_get_label(&quot;debug_to_str&quot;, label);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$1&quot;, &quot;%esi&quot;);
+    target_emit_label(label, &quot;_begin&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$0&quot;, &quot;%edx&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$10&quot;, &quot;%ebx&quot;);
+    target_instruction_one_operand(&quot;divl&quot;, &quot;%ebx&quot;);
+    target_instruction_two_operands(&quot;addl&quot;, &quot;$48&quot;, &quot;%edx&quot;);
+    target_instruction_one_operand(&quot;pushl&quot;, &quot;%edx&quot;);
+    target_instruction_one_operand(&quot;incl&quot;, &quot;%esi&quot;);
+    target_instruction_two_operands(&quot;cmpl&quot;, &quot;$0&quot;, &quot;%eax&quot;);
+    target_instruction_branch(&quot;jz&quot;, label, &quot;_end&quot;);
+    target_instruction_branch(&quot;jmp&quot;, label, &quot;_begin&quot;);
+    target_emit_label(label, &quot;_end&quot;);
+
+    target_get_label(&quot;debug_sign_if&quot;, label);
+    target_instruction_two_operands(&quot;cmpl&quot;, &quot;$0&quot;, &quot;%ecx&quot;);
+    target_instruction_branch(&quot;jge&quot;, label, &quot;_end&quot;);
+    target_instruction_one_operand(&quot;pushl&quot;, &quot;$&#39;-&quot;);
+    target_instruction_one_operand(&quot;incl&quot;, &quot;%esi&quot;);
+    target_emit_label(label, &quot;_end&quot;);
+    
+    target_get_label(&quot;debug_print&quot;, label);
+    target_emit_label(label, &quot;_begin&quot;);
+    target_instruction_two_operands(&quot;cmpl&quot;, &quot;$0&quot;, &quot;%esi&quot;);
+    target_instruction_branch(&quot;jz&quot;, label, &quot;_end&quot;);
+    target_instruction_one_operand(&quot;decl&quot;, &quot;%esi&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$4&quot;, &quot;%eax&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;%esp&quot;, &quot;%ecx&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$1&quot;, &quot;%ebx&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$1&quot;, &quot;%edx&quot;);
+    target_instruction_one_operand(&quot;int&quot;, &quot;$0x80&quot;);
+    target_instruction_two_operands(&quot;addl&quot;, &quot;$4&quot;, &quot;%esp&quot;);
+    target_instruction_branch(&quot;jmp&quot;, label, &quot;_begin&quot;);
+    target_emit_label(label, &quot;_end&quot;);
+}
+
+target_built_in_function_exit() {
+
+    target_instruction_two_operands(&quot;movl&quot;, &quot;%eax&quot;, &quot;%ebx&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$1&quot;, &quot;%eax&quot;);
+    target_instruction_one_operand(&quot;int&quot;, &quot;$0x80&quot;);
+}
+
+target_built_in_function_fgetc() {
+    char label[Str_size];
+
+    target_get_label(&quot;fgetc_if&quot;, label);
+    target_instruction_two_operands(&quot;subl&quot;, &quot;$4&quot;, &quot;%esp&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$3&quot;, &quot;%eax&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$0&quot;, &quot;%ebx&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;%esp&quot;, &quot;%ecx&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$1&quot;, &quot;%edx&quot;);
+    target_instruction_one_operand(&quot;int&quot;, &quot;$0x80&quot;);
+    target_instruction_two_operands(&quot;cmpl&quot;, &quot;$1&quot;, &quot;%eax&quot;);
+    target_instruction_branch(&quot;jne&quot;, label, &quot;_else&quot;);
+    target_instruction_one_operand(&quot;popl&quot;, &quot;%eax&quot;);
+    target_instruction_two_operands(&quot;andl&quot;, &quot;$0xff&quot;, &quot;%eax&quot;);
+    target_instruction_branch(&quot;jmp&quot;, label, &quot;_end&quot;);
+    target_emit_label(label, &quot;_else&quot;);
+    target_instruction_two_operands(&quot;addl&quot;, &quot;$4&quot;, &quot;%esp&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$-1&quot;, &quot;%eax&quot;);
+    target_emit_label(label, &quot;_end&quot;);
+}
+
+target_built_in_function_fputc_stdout() {
+    target_instruction_one_operand(&quot;pushl&quot;, &quot;%eax&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$4&quot;, &quot;%eax&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$1&quot;, &quot;%ebx&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;%esp&quot;, &quot;%ecx&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$1&quot;, &quot;%edx&quot;);
+    target_instruction_one_operand(&quot;int&quot;, &quot;$0x80&quot;);
+    target_instruction_two_operands(&quot;addl&quot;, &quot;$4&quot;, &quot;%esp&quot;);
+}
+
+target_built_in_function_fputc_stderr() {
+    target_instruction_one_operand(&quot;pushl&quot;, &quot;%eax&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$4&quot;, &quot;%eax&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$2&quot;, &quot;%ebx&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;%esp&quot;, &quot;%ecx&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$1&quot;, &quot;%edx&quot;);
+    target_instruction_one_operand(&quot;int&quot;, &quot;$0x80&quot;);
+    target_instruction_two_operands(&quot;addl&quot;, &quot;$4&quot;, &quot;%esp&quot;);
+}
+
+
+// ---------------------------------------------------------------------------
+target_allocate_string(char string[], int string_length) {
+    int i;
+    int offset;
+
+    if (target_string_table_length + string_length &gt; Target_string_table_size) {
+        error_target(&quot;out of initialised (string) storage space&quot;);
+    }
+
+    i = 0;
+    while(i &lt;= string_length) {
+        target_string_table[target_string_table_length + i] = string[i];
+        i = i + 1;
+    }
+
+    offset = target_string_table_length;
+    target_string_table_length = target_string_table_length + string_length;
+
+    return offset * 4 + 4;
+}
+
+target_allocate_global_address(int offset, int var_size) {
+    
+    return -offset * 4;
+}
+
+target_allocate_local_address(int offset, int var_size, int function_argument_count) {
+
+    return -offset * 4 - var_size * 4;
+}
+
+target_allocate_function_argument_address(int argument_no, int var_size) {
+
+    return argument_no * 4 + 4;
+}
+// ---------------------------------------------------------------------------
+target_program_begin() {
+
+    writeln(&quot;&quot;);
+    writeln(&quot;.text&quot;);
+    writeln(&quot;.globl _start&quot;);
+    writeln(&quot;_start:&quot;);
+    target_instruction_one_operand(&quot;call&quot;, &quot;main&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$1&quot;, &quot;%eax&quot;);
+    target_instruction_two_operands(&quot;movl&quot;, &quot;$0&quot;, &quot;%ebx&quot;);
+    target_instruction_one_operand(&quot;int&quot;, &quot;$0x80&quot;);
+    writeln(&quot;&quot;);
+}
+ 
+target_program_end(int global_data_size) {
+    int i;
+    int ch;
+    char s[Str_size];
+    char global_data_size_str[Str_size];
+
+    int_to_str(global_data_size * 4, global_data_size_str);
+
+    writeln(&quot;.bss&quot;);
+    writeln(&quot;global:&quot;);
+    write(&quot;.lcomm global_storage_space, &quot;);
+    writeln(global_data_size_str);
+    writeln(&quot;&quot;);
+    writeln(&quot;.data&quot;);
+    writeln(&quot;string:&quot;);
+    writeln(&quot;.int 0&quot;);
+    i = 0;
+    while (i &lt; target_string_table_length) {
+        ch = target_string_table[i];
+
+        int_to_str(ch, s);
+        write(&quot;.int &quot;);
+        write(s);
+
+        if (ch &gt;= &#39; &#39; &amp;&amp; ch &lt;= &#39;~&#39;) {
+            copy(s, &quot; # &#39; &#39;&quot;);
+            s[4] = ch;
+            write(s);
+        }
+ 
+        writeln(&quot;&quot;);
+        i = i + 1;
+    }
+
+    writeln(&quot;.end&quot;);
+}
+
+
+// ---------------------------------------------------------------------------
+target_get_label(char start_with[], char out_label[]) {
+    char sequence_no_str[Str_size];
+
+    int_to_str(target_label_sequence_no, sequence_no_str);
+    copy(out_label, start_with);
+    append(out_label, &quot;_&quot;);
+    append(out_label, sequence_no_str);
+
+    target_label_sequence_no = target_label_sequence_no + 1;
+}
+</code></pre>

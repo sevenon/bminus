@@ -1,0 +1,74 @@
+<script src="https://google-code-prettify.googlecode.com/svn/loader/run_prettify.js"></script>
+<pre class="prettyprint"><code class="language-c">
+#ifndef _MSC_VER
+#line 2 &quot;errormessages.h&quot;
+#endif
+
+int error_line_no;
+int error_line_pos;
+
+char error_file_name[Str_size];
+
+// ---------------------------------------------------------------------------
+error_set_line(int line_no, int line_pos) {
+    error_line_no = line_no;
+    error_line_pos = line_pos;
+}
+
+// ---------------------------------------------------------------------------
+error_set_file_name(char file_name[]) {
+    copy(error_file_name, file_name);
+}
+
+// ---------------------------------------------------------------------------
+error_print(char err_type[], char msg[]) {
+    char str[Str_size];
+
+    write_stderr(err_type); writeln_stderr(msg);
+
+    write_stderr(&quot;File: &quot;); writeln_stderr(error_file_name);
+
+    int_to_str(error_line_no, str);
+    write_stderr(&quot;Line no: &quot;); writeln_stderr(str);
+
+    int_to_str(error_line_pos, str);
+    write_stderr(&quot;Line pos: &quot;); writeln_stderr(str);
+}
+
+// ---------------------------------------------------------------------------
+error_compiler(char msg[]) {
+    error_print(&quot;Compile error: &quot;, msg);
+    exit(1);
+}
+
+// ---------------------------------------------------------------------------
+error_syntax(char msg[]) {
+    error_print(&quot;Syntax error: &quot;, msg);
+    exit(1);
+}
+
+// ---------------------------------------------------------------------------
+error_parse(char msg[]) {
+    error_print(&quot;Parse error: &quot;, msg);
+    exit(1);
+}
+
+// ---------------------------------------------------------------------------
+error_preprocessor(char msg[]) {
+    error_print(&quot;Error while reading source: &quot;, msg);
+    exit(1);
+}
+
+// ---------------------------------------------------------------------------
+error_target(char msg[]) {
+    error_print(&quot;Code generation error: &quot;, msg);
+    exit(1);
+}
+
+// ---------------------------------------------------------------------------
+error_internal() {
+    error_print(&quot;Internal error&quot;, &quot;&quot;);
+    exit(1);
+}
+
+</code></pre>
