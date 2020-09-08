@@ -44,8 +44,8 @@ write(char str[]) {
 Compiling and running the assembler output:
 <ol>
 <li>Copy and paste the output to the file: program.asm</li>
-<li>Run assembler: as -o program.o program.asm</li>
-<li>Run linker: ld -o program program.o</li>
+<li>Run assembler: as --32 -o program.o program.asm</li>
+<li>Run linker: ld -m elf_i386 -o program program.o</li>
 <li>Run program: ./program</li>
 </ol>
 </html>

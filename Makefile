@@ -8,6 +8,16 @@ ADAPTERS_DIR := ./adapters
 HTML_DIR := ./html
 WWW_DIR := ./www
 
+# generate 32 bit code, disable warnings
+CC := gcc -m32 -w
+
+# choose between oracle jjs and nodejs 
+JS := nodejs
+JS_ADAPTER := nodejs_adapter.js
+# JS := jjs -J-Xmx1g -J-Xss16m 
+# JS_ADAPTER := oracle_jjs_adapter.js
+
+
 BMINUS_CVIRTUALMACHINE_SRC := $(addprefix $(SRC_DIR)/, globals.h stringlib.h errormessages.h preprocessor.h token.h \
                                 target_cvirtualmachine.h \
                                 compiler.h syntax.h bminus.c)
@@ -24,16 +34,16 @@ BMINUS_JAVASCRIPT_SRC := $(addprefix $(SRC_DIR)/, globals.h stringlib.h errormes
 BMINUS_TEST_SRC:= $(sort $(wildcard $(TEST_DIR)/*.c))
 
 
-all: check_jjs bminus_cvirtualmachine bminus_linuxassemblerx86 bminus_javascript web_browser_compile regression_test self_compile_test
+all: check_js bminus_cvirtualmachine bminus_linuxassemblerx86 bminus_javascript web_browser_compile regression_test self_compile_test
 
-self_compile_test: check_jjs self_compile_test_cvirtualmachine self_compile_test_linuxassemblerx86 self_compile_test_javascript
+self_compile_test: check_js self_compile_test_cvirtualmachine self_compile_test_linuxassemblerx86 self_compile_test_javascript
 
 clean:
 	rm $(SRC_TEMP_DIR)/* $(TEST_TEMP_DIR)/* $(BIN_DIR)/* $(WWW_DIR)/*
 
-check_jjs:
-	echo "Checking if Oracle JDK 'jjs' command exists - will terminate if not found"
-	which jjs
+check_js:
+	echo "Checking for javascript - will terminate if not found"
+	which $(JS)
 
 # bminus_cvirtualmachine
 # ----------------------
@@ -41,7 +51,7 @@ check_jjs:
 bminus_cvirtualmachine: $(BIN_DIR)/bminus_cvirtualmachine
 
 $(BIN_DIR)/bminus_cvirtualmachine: $(SRC_TEMP_DIR)/bminus_cvirtualmachine.c
-	gcc -include $(SRC_DIR)/builtinfuncs_ansic.h -o $@ $^
+	$(CC) -include $(SRC_DIR)/builtinfuncs_ansic.h -o $@ $^
 
 $(SRC_TEMP_DIR)/bminus_cvirtualmachine.c: $(BMINUS_CVIRTUALMACHINE_SRC)
 	cat $^ > $@
@@ -53,7 +63,7 @@ $(SRC_TEMP_DIR)/bminus_cvirtualmachine.c: $(BMINUS_CVIRTUALMACHINE_SRC)
 bminus_linuxassemblerx86: $(BIN_DIR)/bminus_linuxassemblerx86
 
 $(BIN_DIR)/bminus_linuxassemblerx86: $(SRC_TEMP_DIR)/bminus_linuxassemblerx86.c
-	gcc -include $(SRC_DIR)/builtinfuncs_ansic.h -o $@ $^
+	$(CC) -include $(SRC_DIR)/builtinfuncs_ansic.h -o $@ $^
 
 $(SRC_TEMP_DIR)/bminus_linuxassemblerx86.c: $(BMINUS_LINUXASSEMBLERX86_SRC)
 	cat $^ > $@
@@ -65,7 +75,7 @@ $(SRC_TEMP_DIR)/bminus_linuxassemblerx86.c: $(BMINUS_LINUXASSEMBLERX86_SRC)
 bminus_javascript: $(BIN_DIR)/bminus_javascript
 
 $(BIN_DIR)/bminus_javascript: $(SRC_TEMP_DIR)/bminus_javascript.c
-	gcc -include $(SRC_DIR)/builtinfuncs_ansic.h -o $@ $^
+	$(CC) -include $(SRC_DIR)/builtinfuncs_ansic.h -o $@ $^
 
 $(SRC_TEMP_DIR)/bminus_javascript.c: $(BMINUS_JAVASCRIPT_SRC)
 	cat $^ > $@
@@ -84,7 +94,7 @@ $(SRC_TEMP_DIR)/bminus_cvirtualmachine_self_self.c: $(SRC_TEMP_DIR)/bminus_cvirt
 	$(BIN_DIR)/bminus_cvirtualmachine_self <$< >$@
 
 $(BIN_DIR)/bminus_cvirtualmachine_self: $(SRC_TEMP_DIR)/bminus_cvirtualmachine_self.c
-	gcc -o $@ $^
+	$(CC) -o $@ $^
 
 
 # self_compile_test_linuxassemblerx86
@@ -100,8 +110,8 @@ $(SRC_TEMP_DIR)/bminus_linuxassemblerx86_self_self.asm: $(SRC_TEMP_DIR)/bminus_l
 	$(BIN_DIR)/bminus_linuxassemblerx86_self <$< >$@
 
 $(BIN_DIR)/bminus_linuxassemblerx86_self: $(SRC_TEMP_DIR)/bminus_linuxassemblerx86_self.asm 
-	as --gstabs+ -o $(SRC_TEMP_DIR)/bminus_linuxassemblerx86_self.o $^
-	ld -o $@ $(SRC_TEMP_DIR)/bminus_linuxassemblerx86_self.o
+	as --32 --gstabs+ -o $(SRC_TEMP_DIR)/bminus_linuxassemblerx86_self.o $^
+	ld -m elf_i386 -o $@ $(SRC_TEMP_DIR)/bminus_linuxassemblerx86_self.o
 
 	
 # self_compile_test_javascript
@@ -114,8 +124,8 @@ $(SRC_TEMP_DIR)/bminus_javascript_self.js: $(SRC_TEMP_DIR)/bminus_javascript.c $
 	$(BIN_DIR)/bminus_javascript <$< >$@
 
 $(SRC_TEMP_DIR)/bminus_javascript_self_self.js: $(SRC_TEMP_DIR)/bminus_javascript.c $(SRC_TEMP_DIR)/bminus_javascript_self.js
-	cat $(SRC_TEMP_DIR)/bminus_javascript_self.js $(ADAPTERS_DIR)/oracle_jjs_adapter.js >$(SRC_TEMP_DIR)/bminus_javascript_self_jjs.js
-	jjs -J-Xmx1g -J-Xss16m $(SRC_TEMP_DIR)/bminus_javascript_self_jjs.js <$< >$@
+	cat $(SRC_TEMP_DIR)/bminus_javascript_self.js $(ADAPTERS_DIR)/$(JS_ADAPTER) >$(SRC_TEMP_DIR)/bminus_javascript_self_jjs.js
+	$(JS) $(SRC_TEMP_DIR)/bminus_javascript_self_jjs.js <$< >$@
 
 
 # web_browser_compile
@@ -167,27 +177,24 @@ regression_test: $(BIN_DIR)/bminus_cvirtualmachine \
 
 $(BMINUS_TEST_TARGET): % : %.c
 	# 1.
-	gcc -include $(SRC_DIR)/builtinfuncs_ansic.h -o $(TEST_TEMP_DIR)/$(notdir $@) $<
+	$(CC) -include $(SRC_DIR)/builtinfuncs_ansic.h -o $(TEST_TEMP_DIR)/$(notdir $@) $<
 	-$(TEST_TEMP_DIR)/$(notdir $@) >$(TEST_TEMP_DIR)/$(notdir $@)_output.txt
 	# 2.
 	$(BIN_DIR)/bminus_cvirtualmachine <$< >$(TEST_TEMP_DIR)/$(notdir $@)_cvm.c
-	gcc -o $(TEST_TEMP_DIR)/$(notdir $@)_cvm $(TEST_TEMP_DIR)/$(notdir $@)_cvm.c
+	$(CC) -o $(TEST_TEMP_DIR)/$(notdir $@)_cvm $(TEST_TEMP_DIR)/$(notdir $@)_cvm.c
 	-$(TEST_TEMP_DIR)/$(notdir $@)_cvm >$(TEST_TEMP_DIR)/$(notdir $@)_cvm_output.txt
 	# 3.
 	diff $(TEST_TEMP_DIR)/$(notdir $@)_output.txt $(TEST_TEMP_DIR)/$(notdir $@)_cvm_output.txt
 	# 4.
 	$(BIN_DIR)/bminus_linuxassemblerx86 <$< >$(TEST_TEMP_DIR)/$(notdir $@)_x86.asm
-	as --gstabs+ -o $(TEST_TEMP_DIR)/$(notdir $@)_x86.o $(TEST_TEMP_DIR)/$(notdir $@)_x86.asm
-	ld -o $(TEST_TEMP_DIR)/$(notdir $@)_x86 $(TEST_TEMP_DIR)/$(notdir $@)_x86.o
+	as --32 --gstabs+ -o $(TEST_TEMP_DIR)/$(notdir $@)_x86.o $(TEST_TEMP_DIR)/$(notdir $@)_x86.asm
+	ld -m elf_i386 -o $(TEST_TEMP_DIR)/$(notdir $@)_x86 $(TEST_TEMP_DIR)/$(notdir $@)_x86.o
 	-$(TEST_TEMP_DIR)/$(notdir $@)_x86 >$(TEST_TEMP_DIR)/$(notdir $@)_x86_output.txt
 	# 5.
 	diff $(TEST_TEMP_DIR)/$(notdir $@)_output.txt $(TEST_TEMP_DIR)/$(notdir $@)_x86_output.txt
 	# 6.
 	$(BIN_DIR)/bminus_javascript <$< >$(TEST_TEMP_DIR)/$(notdir $@)_jvm.js
-	cat $(TEST_TEMP_DIR)/$(notdir $@)_jvm.js $(ADAPTERS_DIR)/oracle_jjs_adapter.js >$(TEST_TEMP_DIR)/$(notdir $@)_jvm_jjs.js
-	jjs -J-Xss16m $(TEST_TEMP_DIR)/$(notdir $@)_jvm_jjs.js >$(TEST_TEMP_DIR)/$(notdir $@)_jvm_jjs_output.txt
+	cat $(TEST_TEMP_DIR)/$(notdir $@)_jvm.js $(ADAPTERS_DIR)/$(JS_ADAPTER) >$(TEST_TEMP_DIR)/$(notdir $@)_jvm_jjs.js
+	$(JS) $(TEST_TEMP_DIR)/$(notdir $@)_jvm_jjs.js >$(TEST_TEMP_DIR)/$(notdir $@)_jvm_jjs_output.txt
 	# 7.
 	diff $(TEST_TEMP_DIR)/$(notdir $@)_output.txt $(TEST_TEMP_DIR)/$(notdir $@)_jvm_jjs_output.txt
-
-
-

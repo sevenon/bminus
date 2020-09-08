@@ -1,0 +1,6 @@
+bin/*
+html-highlighted-source/*
+source-temp/*
+test-temp/*
+
+.history
