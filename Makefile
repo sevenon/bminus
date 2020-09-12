@@ -8,8 +8,10 @@ ADAPTERS_DIR := ./adapters
 HTML_DIR := ./html
 WWW_DIR := ./www
 
-# generate 32 bit code, disable warnings
+# generate 32 bit code on 64 bit systems, disable gcc warnings
 CC := gcc -m32 -w
+AS := as --m32
+LD := ld -m elf_i386
 
 # choose between oracle jjs and nodejs 
 JS := nodejs
@@ -30,16 +32,18 @@ BMINUS_JAVASCRIPT_SRC := $(addprefix $(SRC_DIR)/, globals.h stringlib.h errormes
                                 target_javascript.h \
                                 compiler.h syntax.h bminus.c)
 
-
 BMINUS_TEST_SRC:= $(sort $(wildcard $(TEST_DIR)/*.c))
 
 
-all: check_js bminus_cvirtualmachine bminus_linuxassemblerx86 bminus_javascript web_browser_compile regression_test self_compile_test
+all: work_dirs check_js bminus_cvirtualmachine bminus_linuxassemblerx86 bminus_javascript web_browser_compile regression_test self_compile_test
 
 self_compile_test: check_js self_compile_test_cvirtualmachine self_compile_test_linuxassemblerx86 self_compile_test_javascript
 
+work_dirs:
+	mkdir -p $(SRC_TEMP_DIR) $(TEST_TEMP_DIR) $(BIN_DIR) $(WWW_DIR)  	
+
 clean:
-	rm $(SRC_TEMP_DIR)/* $(TEST_TEMP_DIR)/* $(BIN_DIR)/* $(WWW_DIR)/*
+	rm -f $(SRC_TEMP_DIR)/* $(TEST_TEMP_DIR)/* $(BIN_DIR)/* $(WWW_DIR)/*
 
 check_js:
 	echo "Checking for javascript - will terminate if not found"
@@ -110,8 +114,8 @@ $(SRC_TEMP_DIR)/bminus_linuxassemblerx86_self_self.asm: $(SRC_TEMP_DIR)/bminus_l
 	$(BIN_DIR)/bminus_linuxassemblerx86_self <$< >$@
 
 $(BIN_DIR)/bminus_linuxassemblerx86_self: $(SRC_TEMP_DIR)/bminus_linuxassemblerx86_self.asm 
-	as --32 --gstabs+ -o $(SRC_TEMP_DIR)/bminus_linuxassemblerx86_self.o $^
-	ld -m elf_i386 -o $@ $(SRC_TEMP_DIR)/bminus_linuxassemblerx86_self.o
+	$(AS) --gstabs+ -o $(SRC_TEMP_DIR)/bminus_linuxassemblerx86_self.o $^
+	$(LD) -o $@ $(SRC_TEMP_DIR)/bminus_linuxassemblerx86_self.o
 
 	
 # self_compile_test_javascript
@@ -187,8 +191,8 @@ $(BMINUS_TEST_TARGET): % : %.c
 	diff $(TEST_TEMP_DIR)/$(notdir $@)_output.txt $(TEST_TEMP_DIR)/$(notdir $@)_cvm_output.txt
 	# 4.
 	$(BIN_DIR)/bminus_linuxassemblerx86 <$< >$(TEST_TEMP_DIR)/$(notdir $@)_x86.asm
-	as --32 --gstabs+ -o $(TEST_TEMP_DIR)/$(notdir $@)_x86.o $(TEST_TEMP_DIR)/$(notdir $@)_x86.asm
-	ld -m elf_i386 -o $(TEST_TEMP_DIR)/$(notdir $@)_x86 $(TEST_TEMP_DIR)/$(notdir $@)_x86.o
+	$(AS) --gstabs+ -o $(TEST_TEMP_DIR)/$(notdir $@)_x86.o $(TEST_TEMP_DIR)/$(notdir $@)_x86.asm
+	$(LD) -o $(TEST_TEMP_DIR)/$(notdir $@)_x86 $(TEST_TEMP_DIR)/$(notdir $@)_x86.o
 	-$(TEST_TEMP_DIR)/$(notdir $@)_x86 >$(TEST_TEMP_DIR)/$(notdir $@)_x86_output.txt
 	# 5.
 	diff $(TEST_TEMP_DIR)/$(notdir $@)_output.txt $(TEST_TEMP_DIR)/$(notdir $@)_x86_output.txt
