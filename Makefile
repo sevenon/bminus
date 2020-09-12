@@ -10,7 +10,7 @@ WWW_DIR := ./www
 
 # generate 32 bit code on 64 bit systems, disable gcc warnings
 CC := gcc -m32 -w
-AS := as --m32
+AS := as --32
 LD := ld -m elf_i386
 
 # choose between oracle jjs and nodejs 
