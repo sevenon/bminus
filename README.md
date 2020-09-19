@@ -1,19 +1,30 @@
-# bminus
-C subset toy compiler
+# bminus - a C subset toy compiler
 
-tested in ubuntu 20.04
+Retargetable C subset compiler. Capable of compiling itself.
 
-required to build
-    sudo apt-get install build-essential
-    sudo apt-get install gcc-multilib
-    sudo apt-get install nodejs
+Generates x86 assembler, C, or javascirpt.
 
-    sudo apt-get install libcgi-pm-perl
+Does not use the C library. No external dependencies, no linking. Uses Linux kernel system calls for I/O.
 
+<br>
 
-TODO
-    build generates files in directory output
+## Building and testing in Ubuntu 20.04
 
-    
+install build tools:
+```
+sudo apt-get install build-essential
+sudo apt-get install gcc-multilib
+sudo apt-get install nodejs
+sudo apt-get install git
+```
 
+clone toyrouter repo:
+```
+git clone "https://github.com/sevenon/toyrouter"
+```
 
+build and test:
+```
+cd toyrouter
+make
+```
