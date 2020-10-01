@@ -9,7 +9,7 @@ HTML_DIR := ./html
 WWW_DIR := ./www
 
 # generate 32 bit code on 64 bit systems, disable gcc warnings
-CC := gcc -m32 -w
+CC := gcc -m32 -w -g -D MERGE_CODE
 AS := as --32
 LD := ld -m elf_i386
 
@@ -28,6 +28,10 @@ BMINUS_LINUXASSEMBLERX86_SRC := $(addprefix $(SRC_DIR)/, globals.h stringlib.h e
                                 target_linuxassemblerx86.h \
                                 compiler.h syntax.h bminus.c)
 
+BMINUS_LINUXELFX86_SRC := $(addprefix $(SRC_DIR)/, globals.h stringlib.h errormessages.h preprocessor.h token.h \
+                                target_linuxelfx86.h \
+                                compiler.h syntax.h bminus.c)
+
 BMINUS_JAVASCRIPT_SRC := $(addprefix $(SRC_DIR)/, globals.h stringlib.h errormessages.h preprocessor.h token.h \
                                 target_javascript.h \
                                 compiler.h syntax.h bminus.c)
@@ -35,9 +39,9 @@ BMINUS_JAVASCRIPT_SRC := $(addprefix $(SRC_DIR)/, globals.h stringlib.h errormes
 BMINUS_TEST_SRC:= $(sort $(wildcard $(TEST_DIR)/*.c))
 
 
-all: work_dirs check_js bminus_cvirtualmachine bminus_linuxassemblerx86 bminus_javascript web_browser_compile regression_test self_compile_test
+all: work_dirs check_js bminus_cvirtualmachine bminus_linuxassemblerx86 bminus_linuxelfx86 bminus_javascript web_browser_compile regression_test self_compile_test
 
-self_compile_test: check_js self_compile_test_cvirtualmachine self_compile_test_linuxassemblerx86 self_compile_test_javascript
+self_compile_test: check_js self_compile_test_cvirtualmachine self_compile_test_linuxassemblerx86 self_compile_test_linuxelfx86 self_compile_test_javascript
 
 work_dirs:
 	mkdir -p $(SRC_TEMP_DIR) $(TEST_TEMP_DIR) $(BIN_DIR) $(WWW_DIR)  	
@@ -70,6 +74,18 @@ $(BIN_DIR)/bminus_linuxassemblerx86: $(SRC_TEMP_DIR)/bminus_linuxassemblerx86.c
 	$(CC) -include $(SRC_DIR)/builtinfuncs_ansic.h -o $@ $^
 
 $(SRC_TEMP_DIR)/bminus_linuxassemblerx86.c: $(BMINUS_LINUXASSEMBLERX86_SRC)
+	cat $^ > $@
+
+
+# bminus_linuxelfx86
+# --------------
+#
+bminus_linuxelfx86: $(BIN_DIR)/bminus_linuxelfx86
+
+$(BIN_DIR)/bminus_linuxelfx86: $(SRC_TEMP_DIR)/bminus_linuxelfx86.c
+	$(CC)  -include $(SRC_DIR)/builtinfuncs_ansic.h -o $@ $^
+
+$(SRC_TEMP_DIR)/bminus_linuxelfx86.c: $(BMINUS_LINUXELFX86_SRC)
 	cat $^ > $@
 
 
@@ -117,7 +133,22 @@ $(BIN_DIR)/bminus_linuxassemblerx86_self: $(SRC_TEMP_DIR)/bminus_linuxassemblerx
 	$(AS) --gstabs+ -o $(SRC_TEMP_DIR)/bminus_linuxassemblerx86_self.o $^
 	$(LD) -o $@ $(SRC_TEMP_DIR)/bminus_linuxassemblerx86_self.o
 
-	
+
+# self_compile_test_linuxelfx86
+# -----------------------------------
+#
+self_compile_test_linuxelfx86: $(BIN_DIR)/bminus_linuxelfx86_self $(BIN_DIR)/bminus_linuxelfx86_self_self
+	diff -q $^
+
+$(BIN_DIR)/bminus_linuxelfx86_self: $(SRC_TEMP_DIR)/bminus_linuxelfx86.c
+	$(BIN_DIR)/bminus_linuxelfx86 <$< >$@
+	-chmod u+x $@
+
+$(BIN_DIR)/bminus_linuxelfx86_self_self: $(SRC_TEMP_DIR)/bminus_linuxelfx86.c
+	$(BIN_DIR)/bminus_linuxelfx86_self <$< >$@
+	-chmod u+x $@
+
+
 # self_compile_test_javascript
 # ----------------------------
 #
@@ -169,12 +200,15 @@ $(WWW_DIR)/bminus_javascript.js: $(SRC_TEMP_DIR)/bminus_javascript.c $(BIN_DIR)/
 # 3. compare output of 1. and 2.
 # 4. compile test with bminus (generate x86 assembler), run test and save output
 # 5. compare output of 1. and 4.
-# 6. compile test with bminus (generate javascript), run test and save output
+# 6. compile test with bminus (generate x86 elf), run test and save output
 # 7. compare output of 1. and 6.
+# 8. compile test with bminus (generate javascript), run test and save output
+# 9. compare output of 1. and 8.
 BMINUS_TEST_TARGET := $(patsubst %.c,%,$(BMINUS_TEST_SRC))
 
 regression_test: $(BIN_DIR)/bminus_cvirtualmachine \
                  $(BIN_DIR)/bminus_linuxassemblerx86 \
+                 $(BIN_DIR)/bminus_linuxelfx86 \
                  $(BIN_DIR)/bminus_javascript \
                  $(BMINUS_TEST_TARGET)
 				 
@@ -197,8 +231,14 @@ $(BMINUS_TEST_TARGET): % : %.c
 	# 5.
 	diff $(TEST_TEMP_DIR)/$(notdir $@)_output.txt $(TEST_TEMP_DIR)/$(notdir $@)_x86_output.txt
 	# 6.
+	$(BIN_DIR)/bminus_linuxelfx86 <$< >$(TEST_TEMP_DIR)/$(notdir $@)_elfx86
+	-chmod u+x $(TEST_TEMP_DIR)/$(notdir $@)_elfx86
+	-$(TEST_TEMP_DIR)/$(notdir $@)_elfx86 >$(TEST_TEMP_DIR)/$(notdir $@)_elfx86_output.txt
+	# 7.
+	diff $(TEST_TEMP_DIR)/$(notdir $@)_output.txt $(TEST_TEMP_DIR)/$(notdir $@)_elfx86_output.txt
+	# 8.
 	$(BIN_DIR)/bminus_javascript <$< >$(TEST_TEMP_DIR)/$(notdir $@)_jvm.js
 	cat $(TEST_TEMP_DIR)/$(notdir $@)_jvm.js $(ADAPTERS_DIR)/$(JS_ADAPTER) >$(TEST_TEMP_DIR)/$(notdir $@)_jvm_jjs.js
 	$(JS) $(TEST_TEMP_DIR)/$(notdir $@)_jvm_jjs.js >$(TEST_TEMP_DIR)/$(notdir $@)_jvm_jjs_output.txt
-	# 7.
+	# 9.
 	diff $(TEST_TEMP_DIR)/$(notdir $@)_output.txt $(TEST_TEMP_DIR)/$(notdir $@)_jvm_jjs_output.txt

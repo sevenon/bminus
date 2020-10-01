@@ -2,7 +2,7 @@
 
 Retargetable C subset compiler. Capable of compiling itself.
 
-Generates x86 assembler, C, or javascirpt.
+Generates linux executable, x86 assembler, C, or javascirpt.
 
 Does not use the C library. No external dependencies, no linking. Uses Linux kernel system calls for I/O.
 

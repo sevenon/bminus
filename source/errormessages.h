@@ -1,4 +1,4 @@
-#ifndef _MSC_VER
+#ifdef LINE_DIRECTIVE
 #line 2 "errormessages.h"
 #endif
 

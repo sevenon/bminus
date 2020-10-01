@@ -1,8 +1,8 @@
-#ifndef _MSC_VER
+#ifdef LINE_DIRECTIVE
 #line 2 "syntax.h"
 #endif
 
-// C-Subset Syntax 
+// BMINUS Syntax 
 //
 // program
 //            global-declaration-list

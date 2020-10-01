@@ -1,4 +1,4 @@
-#ifndef VC_IDE
+#ifdef LINE_DIRECTIVE
 #line 2 "globals.h"
 #endif
 

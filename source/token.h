@@ -1,4 +1,4 @@
-#ifndef _MSC_VER
+#ifdef LINE_DIRECTIVE
 #line 2 "token.h"
 #endif
 
@@ -60,8 +60,7 @@
 //             one-of  < > + - / * = <= >= ( ) { } [ ] != == ; , 
 //
 // keyword
-//             one-of  const int char if else while enum debug
-//
+//             one-of  int char if else while enum return
 // ---------------------------------------------------------------------------
 
 int token_type;

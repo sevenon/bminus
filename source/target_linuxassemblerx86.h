@@ -1,7 +1,6 @@
-#ifndef _MSC_VER
+#ifdef LINE_DIRECTIVE
 #line 2 "target_linuxassemblerx86.h"
 #endif
-
 
 // ---------------------------------------------------------------------------
 // addressing modes
@@ -470,6 +469,7 @@ target_allocate_function_argument_address(int argument_no, int var_size) {
 
     return argument_no * 4 + 4;
 }
+
 // ---------------------------------------------------------------------------
 target_program_begin() {
 
@@ -520,7 +520,6 @@ target_program_end(int global_data_size) {
 
     writeln(".end");
 }
-
 
 // ---------------------------------------------------------------------------
 target_get_label(char start_with[], char out_label[]) {
